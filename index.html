@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Interactive iOS Smartphone Simulator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            box-sizing: border-box;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .phone-frame {
+            width: 100%;
+            max-width: 385px;
+            height: 790px;
+            max-height: 95vh;
+            border-radius: 48px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 10px #1f2937, 0 0 0 12px #374151;
+            position: relative;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        .screen-view {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+            background-color: #000;
+        }
+
+        .screen-hidden-right {
+            transform: translateX(100%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .screen-hidden-down {
+            transform: translateY(100%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .screen-active {
+            transform: translateX(0) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 20;
+        }
+
+        .glass-dark {
+            background: rgba(18, 18, 20, 0.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .key-btn:active {
+            background-color: rgba(255, 255, 255, 0.4) !important;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .toast-notify {
+            animation: slideDown 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 min-h-screen flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+
+    <!-- PHONE FRAME CONTAINER -->
+    <div class="phone-frame relative text-white">
+
+        <!-- TOP STATUS BAR & BACK BUTTON HUD -->
+        <div class="absolute top-0 left-0 right-0 h-11 z-[100] flex justify-between items-center px-5 pt-3 pointer-events-none">
+            <!-- Left Header: Back Button + Clock -->
+            <div class="flex items-center gap-2 pointer-events-auto">
+                <button id="global-back-btn" onclick="goHome()" class="w-6 h-6 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-xs hover:bg-black/70 active:scale-90 transition border border-white/20" title="홈으로">
+                    ↩️
+                </button>
+                <span id="status-bar-time" class="text-xs font-semibold tracking-tight text-white drop-shadow">09:41</span>
+            </div>
+
+            <!-- Dynamic Island Capsule -->
+            <div class="w-22 h-4.5 bg-black rounded-full absolute left-1/2 -translate-x-1/2 top-2.5 flex items-center justify-end px-2 gap-1.5 shadow-md pointer-events-auto">
+                <div class="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-700"></div>
+            </div>
+
+            <!-- Right Status Icons -->
+            <div class="flex items-center gap-1.5 text-xs text-white drop-shadow">
+                <i class="fa-solid fa-signal text-[10px]"></i>
+                <i class="fa-solid fa-wifi text-[10px]"></i>
+                <i class="fa-solid fa-battery-full text-xs"></i>
+            </div>
+        </div>
+
+        <!-- GLOBAL TOAST NOTIFICATION CONTAINER -->
+        <div id="toast-container" class="absolute top-12 left-3 right-3 z-[90] pointer-events-none"></div>
+
+        <!-- ========================================== -->
+        <!-- SCREEN 1: LOCK SCREEN & PASSCODE -->
+        <!-- ========================================== -->
+        <div id="lock-screen" onclick="showPasscodeUI()" class="screen-view screen-active z-50 flex flex-col justify-between pt-12 pb-8 px-6 bg-cover bg-center cursor-pointer" style="background-image: url('https://i.postimg.cc/JngqYmSG/0C063B73-C7FC-40CE-9E87-4CE09CC3183A.jpg');">
+            <div class="absolute inset-0 bg-black/15 -z-10"></div>
+
+            <!-- Lock Header Clock -->
+            <div id="lock-header" class="text-center pt-4">
+                <div class="text-xs font-medium tracking-wide text-white/90">11월 19일 목요일</div>
+                <div class="text-7xl font-bold tracking-tight text-white/95 mt-1">09:41</div>
+                <div class="text-xs text-white/90 mt-4 bg-black/40 backdrop-blur-md inline-block px-3.5 py-1.5 rounded-full border border-white/20 shadow-lg">
+                    <i class="fa-solid fa-lock text-xs mr-1.5"></i>터치하여 잠금해제
+                </div>
+            </div>
+
+            <!-- Passcode Modal Layer -->
+            <div id="passcode-layer" onclick="event.stopPropagation()" class="hidden absolute inset-0 bg-black/85 backdrop-blur-xl z-50 flex flex-col items-center justify-between py-12 px-8">
+                <div class="mt-8 text-center">
+                    <p class="text-sm font-semibold tracking-wide text-white">암호 입력</p>
+                    <div id="pin-dots" class="flex gap-4 justify-center mt-6">
+                        <div class="w-3.5 h-3.5 rounded-full border-2 border-white/80"></div>
+                        <div class="w-3.5 h-3.5 rounded-full border-2 border-white/80"></div>
+                        <div class="w-3.5 h-3.5 rounded-full border-2 border-white/80"></div>
+                        <div class="w-3.5 h-3.5 rounded-full border-2 border-white/80"></div>
+                    </div>
+                    <p id="hint-text" class="text-xs text-red-400 mt-4 font-medium h-5"></p>
+                </div>
+
+                <!-- Number Keypad -->
+                <div class="w-full max-w-[260px] grid grid-cols-3 gap-5 text-center mb-4">
+                    <button onclick="pressNum('1')" class="key-btn w-16 h-16 rounded-full bg-white/20 text-2xl font-normal flex items-center justify-center mx-auto">1</button>
+                    <button onclick="pressNum('2')" class="key-btn w-16 h-16 rounded-full bg-white/20 text-2xl font-normal flex items-center justify-center mx-auto">2</button>
+                    <button onclick="pressNum('3')" class="key-btn w-16 h-16 rounded-full bg-white/20 text-2xl font-normal flex items-center justify-center mx-auto">3</button>
+                    <button onclick="pressNum('4')" class="key-btn w-16 h-16 rounded-full bg-white/20 text-2xl font-normal flex items-center justify-center mx-auto">4</button>
+                    <button onclick="pressNum('5')" class="key-btn w-16 h-16 rounded-full bg-white/20 text-2xl font-normal flex items-center justify-center mx-auto">5</button>
+                    <button onclick="pressNum('6')" class="key-btn w-16 h-16 rounded-full bg-white/20 text-2xl font-normal flex items-center justify-center mx-auto">6</button>
+                    <button onclick="pressNum('7')" class="key-btn w-16 h-16 rounded-full bg-white/20 text-2xl font-normal flex items-center justify-center mx-auto">7</button>
+                    <button onclick="pressNum('8')" class="key-btn w-16 h-16 rounded-full bg-white/20 text-2xl font-normal flex items-center justify-center mx-auto">8</button>
+                    <button onclick="pressNum('9')" class="key-btn w-16 h-16 rounded-full bg-white/20 text-2xl font-normal flex items-center justify-center mx-auto">9</button>
+                    <div></div>
+                    <button onclick="pressNum('0')" class="key-btn w-16 h-16 rounded-full bg-white/20 text-2xl font-normal flex items-center justify-center mx-auto">0</button>
+                    <button onclick="clearNum()" class="w-16 h-16 text-xs text-white/80 flex items-center justify-center mx-auto font-medium">취소</button>
+                </div>
+            </div>
+
+            <!-- Bottom Quick Actions -->
+            <div class="flex justify-between items-center px-2 z-10">
+                <button onclick="event.stopPropagation()" class="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/90 border border-white/10">
+                    <i class="fa-solid fa-flashlight text-base"></i>
+                </button>
+                <button onclick="event.stopPropagation(); openApp('camera-app')" class="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/90 border border-white/10">
+                    <i class="fa-solid fa-camera text-base"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- SCREEN 2: HOME SCREEN -->
+        <!-- ========================================== -->
+        <div id="home-screen" class="screen-view screen-hidden-right pt-12 pb-8 px-4 flex flex-col justify-between overflow-y-auto no-scrollbar bg-cover bg-center" style="background-image: url('https://i.postimg.cc/JngqYmSG/0C063B73-C7FC-40CE-9E87-4CE09CC3183A.jpg');">
+            
+            <div class="space-y-3.5">
+                <!-- WIDGETS GRID -->
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Weather Widget -->
+                    <div class="aspect-square rounded-3xl overflow-hidden relative shadow-lg bg-sky-900/80 backdrop-blur-md border border-white/20 p-3.5 flex flex-col justify-between text-white">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-xs font-bold text-sky-200">서울특별시 강남구</p>
+                                <p class="text-3xl font-extrabold mt-1">18°</p>
+                            </div>
+                            <i class="fa-solid fa-cloud-sun text-amber-300 text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-sky-100">구름 조금</p>
+                            <p class="text-[10px] text-sky-300 mt-0.5">최고: 21° 최저: 12°</p>
+                        </div>
+                    </div>
+
+                    <!-- Calendar Widget -->
+                    <div onclick="openApp('calendar-app')" class="aspect-square rounded-3xl overflow-hidden relative shadow-lg bg-white text-gray-900 p-3.5 flex flex-col justify-between cursor-pointer active:scale-95 transition border border-white/30">
+                        <div class="flex justify-between items-center border-b border-gray-100 pb-1">
+                            <span class="text-xs font-black text-red-500 uppercase tracking-wider">11월</span>
+                            <span class="text-[10px] font-bold text-gray-400">목요일</span>
+                        </div>
+                        <div class="my-auto">
+                            <p class="text-4xl font-extrabold text-gray-900 text-center">11/19</p>
+                            <p class="text-[11px] font-bold text-red-500 text-center mt-1">통계학 1 수업</p>
+                        </div>
+                        <p class="text-[10px] text-gray-400 text-center">터치하여 전체 일정 보기</p>
+                    </div>
+                </div>
+
+                <!-- D-DAY WIDGET (INITIALLY HIDDEN) -->
+                <div id="home-dday-widget" class="hidden w-full rounded-2xl glass-dark p-3.5 flex items-center justify-between border border-pink-500/30 shadow-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-pink-500/30 flex items-center justify-center text-pink-400">
+                            <i class="fa-solid fa-heart text-lg"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-white">D-DAY 기념일</p>
+                            <p class="text-[11px] text-pink-200 font-medium">이선웅 약속</p>
+                        </div>
+                    </div>
+                    <span class="text-lg font-black text-pink-400 tracking-tight">D-1</span>
+                </div>
+
+                <!-- MAIN APP ICONS GRID (4 COLUMNS) -->
+                <div class="grid grid-cols-4 gap-y-4 gap-x-2 pt-1">
+                    <!-- Internet -->
+                    <div onclick="openApp('internet-app')" class="flex flex-col items-center gap-1 cursor-pointer group">
+                        <div class="w-13 h-13 rounded-2xl overflow-hidden shadow-md group-active:scale-90 transition transform">
+                            <img src="https://i.postimg.cc/RhHTjyz7/3EF6B03A-F236-4883-A66B-CE5FC8E138EB.jpg" class="w-full h-full object-cover" alt="인터넷">
+                        </div>
+                        <span class="text-[11px] text-white font-medium drop-shadow">인터넷</span>
+                    </div>
+
+                    <!-- KakaoTalk -->
+                    <div onclick="openApp('kakao-app')" class="flex flex-col items-center gap-1 cursor-pointer group relative">
+                        <div class="w-13 h-13 rounded-2xl overflow-hidden shadow-md group-active:scale-90 transition transform relative">
+                            <img src="https://i.postimg.cc/zBMj254d/BD3ED6BA-47FD-411D-B15E-9AEB34B7459B.png" class="w-full h-full object-cover" alt="카카오톡">
+                        </div>
+                        <span class="absolute -top-1 right-2 bg-red-500 text-white text-[10px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-black">1</span>
+                        <span class="text-[11px] text-white font-medium drop-shadow">카카오톡</span>
+                    </div>
+
+                    <!-- Instagram -->
+                    <div onclick="openApp('insta-app')" class="flex flex-col items-center gap-1 cursor-pointer group">
+                        <div class="w-13 h-13 rounded-2xl overflow-hidden shadow-md group-active:scale-90 transition transform">
+                            <img src="https://i.postimg.cc/263Gx398/761C3F98-262A-4324-AAFB-55A91323EB11.jpg" class="w-full h-full object-cover" alt="인스타그램">
+                        </div>
+                        <span class="text-[11px] text-white font-medium drop-shadow">Instagram</span>
+                    </div>
+
+                    <!-- YouTube -->
+                    <div onclick="openApp('youtube-app')" class="flex flex-col items-center gap-1 cursor-pointer group">
+                        <div class="w-13 h-13 rounded-2xl overflow-hidden shadow-md group-active:scale-90 transition transform">
+                            <img src="https://i.postimg.cc/3NmgLGg1/4E70E147-E98E-4C27-8FBF-9700C85A629B.jpg" class="w-full h-full object-cover" alt="유튜브">
+                        </div>
+                        <span class="text-[11px] text-white font-medium drop-shadow">YouTube</span>
+                    </div>
+
+                    <!-- 🔥 Dating App -->
+                    <div onclick="openApp('flame-app')" class="flex flex-col items-center gap-1 cursor-pointer group">
+                        <div class="w-13 h-13 rounded-2xl overflow-hidden shadow-md group-active:scale-90 transition transform">
+                            <img src="https://i.postimg.cc/63S0bwFY/3B0E8A78-6892-4751-B41D-26CF40DEE685.png" class="w-full h-full object-cover" alt="🔥">
+                        </div>
+                        <span class="text-[11px] text-white font-medium drop-shadow">🔥</span>
+                    </div>
+
+                    <!-- Camera -->
+                    <div onclick="openApp('camera-app')" class="flex flex-col items-center gap-1 cursor-pointer group">
+                        <div class="w-13 h-13 rounded-2xl overflow-hidden shadow-md group-active:scale-90 transition transform">
+                            <img src="https://i.postimg.cc/RhKcPtcX/ED05CE6E-B257-4C92-9D0A-72DEC525EC14.jpg" class="w-full h-full object-cover" alt="카메라">
+                        </div>
+                        <span class="text-[11px] text-white font-medium drop-shadow">카메라</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOTTOM DOCK BAR -->
+            <div class="glass-dark rounded-3xl p-3 flex justify-around items-center border border-white/20 mb-2">
+                <!-- Phone -->
+                <div onclick="openApp('phone-app')" class="relative cursor-pointer active:scale-90 transition">
+                    <img src="https://i.postimg.cc/wvPV4Hnt/2B781D66-1DC3-44E6-8D24-89534F796C63.jpg" class="w-12 h-12 rounded-2xl object-cover shadow-md" alt="전화">
+                    <span class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-black">1</span>
+                </div>
+
+                <!-- Messages -->
+                <div onclick="openApp('messages-app')" class="cursor-pointer active:scale-90 transition">
+                    <img src="https://i.postimg.cc/vBDhvDqK/F12A4D34-3CE4-4B2B-AA5A-5269D66FF776.jpg" class="w-12 h-12 rounded-2xl object-cover shadow-md" alt="문자">
+                </div>
+
+                <!-- Notes -->
+                <div onclick="openApp('notes-app')" class="cursor-pointer active:scale-90 transition">
+                    <img src="https://i.postimg.cc/d3r8WC8N/4FBE4E0B-EA35-474D-8CF6-74D968CAABD9.jpg" class="w-12 h-12 rounded-2xl object-cover shadow-md" alt="메모">
+                </div>
+
+                <!-- Settings -->
+                <div onclick="openApp('settings-app')" class="cursor-pointer active:scale-90 transition">
+                    <div class="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-gray-200 text-2xl shadow-md border border-white/20">
+                        <i class="fa-solid fa-gear"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP 1: CALENDAR APP -->
+        <!-- ========================================== -->
+        <div id="calendar-app" class="screen-view screen-hidden-right bg-white text-gray-900 pt-11 px-4">
+            <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+                <button onclick="goHome()" class="text-red-500 flex items-center gap-1 text-xs font-bold">
+                    <i class="fa-solid fa-chevron-left text-[10px]"></i> 홈
+                </button>
+                <span class="font-bold text-base text-gray-900">2026년 11월</span>
+                <i class="fa-solid fa-plus text-red-500 text-base"></i>
+            </div>
+
+            <div class="mt-3 overflow-y-auto no-scrollbar flex-1 pb-12">
+                <div class="grid grid-cols-7 text-center text-xs font-semibold text-gray-400 mb-2">
+                    <span class="text-red-500">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="text-blue-500">토</span>
+                </div>
+                <div class="grid grid-cols-7 text-center text-sm font-semibold mb-4 gap-y-1">
+                    <span class="text-gray-300">15</span>
+                    <span class="py-1">16</span>
+                    <span class="py-1">17</span>
+                    <span class="py-1">18</span>
+                    <span class="py-1 bg-red-500 text-white rounded-full font-bold shadow-sm">19</span>
+                    <span class="py-1">20</span>
+                    <span class="py-1 text-blue-500">21</span>
+                </div>
+
+                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 mt-4">월간 요일별 일정</h3>
+                <div class="space-y-2.5 text-xs">
+                    <div class="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p class="font-bold text-red-500 mb-1.5"><i class="fa-regular fa-calendar-check mr-1"></i>월요일 / 수요일</p>
+                        <ul class="space-y-1 text-gray-700 font-medium">
+                            <li class="flex justify-between"><span>화학 1</span> <span class="text-gray-400">10:00 ~ 11:00</span></li>
+                            <li class="flex justify-between"><span>과학과 기술</span> <span class="text-gray-400">11:00 ~ 14:00</span></li>
+                            <li class="flex justify-between"><span>컴퓨터 프로그래밍</span> <span class="text-gray-400">15:00 ~ 16:00</span></li>
+                            <li class="flex justify-between"><span>물리학 1</span> <span class="text-gray-400">17:00 ~ 19:00</span></li>
+                        </ul>
+                    </div>
+
+                    <div class="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p class="font-bold text-red-500 mb-1.5"><i class="fa-regular fa-calendar-check mr-1"></i>화요일 / 목요일</p>
+                        <div class="flex justify-between text-gray-700 font-medium">
+                            <span>통계학 1</span> <span class="text-gray-400">13:00 ~ 15:00</span>
+                        </div>
+                    </div>
+
+                    <div id="calendar-seunwoong-event" class="hidden p-3 bg-pink-50 border border-pink-200 rounded-2xl">
+                        <p class="font-bold text-pink-600 mb-1"><i class="fa-solid fa-heart mr-1"></i>내일 일정 (특별)</p>
+                        <p class="text-gray-800 font-bold">• 이선웅 만남 (저녁)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP 2: CAMERA APP -->
+        <!-- ========================================== -->
+        <div id="camera-app" class="screen-view screen-hidden-right bg-black text-white pt-11 flex flex-col justify-between">
+            <div class="flex justify-between px-6 py-2 text-xs font-medium text-amber-300">
+                <i class="fa-solid fa-bolt"></i>
+                <span>RAW</span>
+                <i class="fa-solid fa-chevron-up"></i>
+            </div>
+
+            <div class="relative flex-1 bg-gray-900 rounded-3xl overflow-hidden my-2 mx-2 border border-gray-800">
+                <img src="https://i.postimg.cc/brkQ6nQT/3CD16A40-5713-482C-8F8B-1C256FE2734F.jpg" class="w-full h-full object-cover" alt="카메라 뷰파인더">
+            </div>
+
+            <div class="pb-10 pt-2 px-6 flex flex-col gap-4">
+                <div class="flex justify-center gap-6 text-xs text-amber-400 font-semibold tracking-widest">
+                    <span>비디오</span>
+                    <span class="text-yellow-400 border-b-2 border-yellow-400 pb-0.5">사진</span>
+                    <span class="text-gray-500">인물사진</span>
+                </div>
+                <div class="flex items-center justify-between px-4">
+                    <div class="w-10 h-10 rounded-xl bg-gray-800 overflow-hidden border border-white/20">
+                        <img src="https://i.postimg.cc/brkQ6nQT/3CD16A40-5713-482C-8F8B-1C256FE2734F.jpg" class="w-full h-full object-cover">
+                    </div>
+                    <button class="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center p-1">
+                        <div class="w-full h-full rounded-full bg-white active:scale-90 transition"></div>
+                    </button>
+                    <button class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-white">
+                        <i class="fa-solid fa-rotate text-sm"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP 3: PHONE APP -->
+        <!-- ========================================== -->
+        <div id="phone-app" class="screen-view screen-hidden-right bg-white text-gray-900 pt-11 px-4">
+            <div id="phone-list-view" class="flex flex-col h-full pb-10">
+                <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <span class="text-2xl font-bold">최근 통화</span>
+                    <span class="text-xs font-bold text-blue-500">편집</span>
+                </div>
+
+                <div class="divide-y divide-gray-100 overflow-y-auto no-scrollbar flex-1">
+                    <div onclick="startCall('엄마', '010-9999-8888')" class="py-3 flex justify-between items-center cursor-pointer active:bg-gray-50 px-1 rounded-xl">
+                        <div>
+                            <p class="font-bold text-sm text-gray-900">엄마</p>
+                            <p class="text-xs text-gray-400"><i class="fa-solid fa-arrow-down-left text-green-500 mr-1"></i>수신 • 금요일</p>
+                        </div>
+                        <i class="fa-solid fa-circle-info text-blue-500 text-base"></i>
+                    </div>
+                    <div onclick="startCall('010-1234-5678', '010-1234-5678')" class="py-3 flex justify-between items-center cursor-pointer active:bg-gray-50 px-1 rounded-xl">
+                        <div>
+                            <p class="font-bold text-sm text-gray-900">010-1234-5678</p>
+                            <p class="text-xs text-gray-400"><i class="fa-solid fa-arrow-up-right text-gray-400 mr-1"></i>발신 • 수요일</p>
+                        </div>
+                        <i class="fa-solid fa-circle-info text-blue-500 text-base"></i>
+                    </div>
+                    <div onclick="startCall('김찬주(경영과 22)', '010-5555-4444')" class="py-3 flex justify-between items-center cursor-pointer active:bg-gray-50 px-1 rounded-xl">
+                        <div>
+                            <p class="font-bold text-sm text-gray-900">김찬주(경영과 22)</p>
+                            <p class="text-xs text-gray-400"><i class="fa-solid fa-arrow-down-left text-green-500 mr-1"></i>수신 • 수요일</p>
+                        </div>
+                        <i class="fa-solid fa-circle-info text-blue-500 text-base"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Call Screen UI -->
+            <div id="phone-calling-view" class="hidden absolute inset-0 bg-slate-900 text-white z-50 flex flex-col justify-between py-12 px-6">
+                <div class="text-center mt-6">
+                    <h2 id="call-target-name" class="text-2xl font-bold">엄마</h2>
+                    <p id="call-timer" class="text-xs text-gray-300 mt-1">통화 연결 중...</p>
+                </div>
+
+                <div class="space-y-8 mb-6">
+                    <div class="grid grid-cols-3 gap-6 text-center max-w-[260px] mx-auto">
+                        <div class="flex flex-col items-center gap-1">
+                            <button class="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-xl"><i class="fa-solid fa-microphone-slash"></i></button>
+                            <span class="text-[10px] text-gray-300">음소거</span>
+                        </div>
+                        <div class="flex flex-col items-center gap-1">
+                            <button class="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-xl"><i class="fa-solid fa-grip"></i></button>
+                            <span class="text-[10px] text-gray-300">키패드</span>
+                        </div>
+                        <div class="flex flex-col items-center gap-1">
+                            <button class="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-xl"><i class="fa-solid fa-volume-high"></i></button>
+                            <span class="text-[10px] text-gray-300">스피커</span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-center">
+                        <button onclick="endCall()" class="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center text-2xl shadow-lg active:scale-95 transition">
+                            <i class="fa-solid fa-phone-slash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP 4: MESSAGES APP (EMPTY PER PROMPT) -->
+        <!-- ========================================== -->
+        <div id="messages-app" class="screen-view screen-hidden-right bg-white text-gray-900 pt-11 px-4 flex flex-col pb-10">
+            <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                <span class="text-2xl font-bold">메시지</span>
+                <i class="fa-regular fa-pen-to-square text-blue-500 text-lg"></i>
+            </div>
+            <div class="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm">
+                <i class="fa-regular fa-comments text-4xl mb-2 text-gray-300"></i>
+                <p>메시지 없음</p>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP 5: NOTES APP (SCHEDULE ENTRY) -->
+        <!-- ========================================== -->
+        <div id="notes-app" class="screen-view screen-hidden-right bg-slate-900 text-white pt-11 px-4 flex flex-col pb-10">
+            <div id="notes-list-view" class="flex flex-col h-full">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+                    <span class="text-2xl font-bold">메모</span>
+                    <i class="fa-regular fa-pen-to-square text-amber-400 text-lg"></i>
+                </div>
+                <div class="divide-y divide-gray-800 overflow-y-auto no-scrollbar flex-1 mt-2">
+                    <div onclick="showNoteDetail()" class="py-3 cursor-pointer active:bg-slate-800 px-2 rounded-xl">
+                        <p class="font-bold text-sm text-amber-400">일정 📌</p>
+                        <p class="text-xs text-gray-400 mt-1">10월 3일 12시 압구정</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="notes-detail-view" class="hidden flex-1 flex flex-col">
+                <button onclick="hideNoteDetail()" class="text-amber-400 text-xs font-bold mb-3 flex items-center gap-1">
+                    <i class="fa-solid fa-chevron-left text-[10px]"></i> 목록
+                </button>
+                <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex-1">
+                    <h3 class="text-base font-bold text-amber-400 mb-2">일정</h3>
+                    <p class="text-xs text-gray-200 leading-relaxed">
+                        10월 3일 12시 압구정
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP 6: INTERNET (NAVER) APP -->
+        <!-- ========================================== -->
+        <div id="internet-app" class="screen-view screen-hidden-right bg-white text-gray-900 pt-11 flex flex-col pb-8">
+            <div class="px-4 py-2 border-b border-gray-200 flex justify-between items-center bg-emerald-500 text-white">
+                <span class="font-black text-lg tracking-tight">NAVER</span>
+                <div class="flex gap-3 text-sm">
+                    <i onclick="openSearchHistory()" class="fa-solid fa-clock-rotate-left cursor-pointer"></i>
+                    <i onclick="closeSearchHistory()" class="fa-solid fa-house cursor-pointer"></i>
+                </div>
+            </div>
+
+            <div id="internet-home-view" class="flex-1 overflow-y-auto no-scrollbar p-3 space-y-3">
+                <div onclick="openSearchHistory()" class="w-full p-3 rounded-2xl bg-gray-100 border border-gray-200 text-gray-500 text-xs flex justify-between items-center cursor-pointer">
+                    <span>검색어를 입력하세요</span>
+                    <i class="fa-solid fa-magnifying-glass text-emerald-500"></i>
+                </div>
+                <div class="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                    <p class="text-xs font-bold text-emerald-700 mb-1">실시간 주요 뉴스</p>
+                    <p class="text-xs text-gray-800 font-medium truncate">• 오늘 서울 최고기온 21도.. 완연한 가을 날씨</p>
+                </div>
+            </div>
+
+            <div id="internet-search-view" class="hidden flex-1 overflow-y-auto no-scrollbar p-4 bg-gray-50">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-xs font-bold text-gray-500">최근 검색어</span>
+                    <button onclick="closeSearchHistory()" class="text-xs text-emerald-600 font-bold">닫기</button>
+                </div>
+                <ul class="divide-y divide-gray-200 text-xs text-gray-700 bg-white rounded-2xl border border-gray-200">
+                    <li class="p-3 flex justify-between"><span>프사 도용</span><span class="text-gray-400">10.03</span></li>
+                    <li class="p-3 flex justify-between"><span>프사 도용 거르는 법</span><span class="text-gray-400">10.03</span></li>
+                    <li class="p-3 flex justify-between"><span>게이 어플 데이트 사기</span><span class="text-gray-400">10.02</span></li>
+                    <li class="p-3 flex justify-between"><span>그루밍 범죄</span><span class="text-gray-400">10.01</span></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP 7: KAKAOTALK APP -->
+        <!-- ========================================== -->
+        <div id="kakao-app" class="screen-view screen-hidden-right bg-amber-300 text-slate-900 pt-11 flex flex-col pb-8">
+            <div class="px-4 py-2 flex justify-between items-center border-b border-amber-400/50">
+                <span class="text-lg font-extrabold">채팅</span>
+                <i class="fa-solid fa-comment-medical text-base"></i>
+            </div>
+
+            <div id="kakao-list-view" class="flex-1 bg-white divide-y divide-gray-100 overflow-y-auto no-scrollbar">
+                <div onclick="openKakaoChat()" class="p-3.5 flex items-center gap-3 cursor-pointer active:bg-gray-50">
+                    <div class="w-11 h-11 rounded-2xl bg-amber-400 text-slate-900 font-black flex items-center justify-center text-sm">찬</div>
+                    <div class="flex-1 overflow-hidden">
+                        <div class="flex justify-between items-center"><span class="font-bold text-xs">김주찬</span><span class="text-[10px] text-gray-400">10월 3일</span></div>
+                        <p class="text-xs text-gray-500 truncate mt-0.5">ㅇㅇ</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="kakao-room-view" class="hidden flex-1 bg-sky-100 flex flex-col">
+                <div class="p-2.5 bg-white border-b border-gray-200 flex items-center justify-between">
+                    <button onclick="closeKakaoChat()" class="text-xs font-bold text-gray-600 flex items-center gap-1">
+                        <i class="fa-solid fa-chevron-left text-[10px]"></i> 이전
+                    </button>
+                    <span class="text-xs font-bold text-gray-800">김주찬</span>
+                    <i class="fa-solid fa-bars text-gray-500 text-xs"></i>
+                </div>
+                <div class="flex-1 p-3 overflow-y-auto no-scrollbar space-y-2 text-xs">
+                    <div class="text-center text-[10px] text-gray-400 my-1">2026년 10월 3일</div>
+                    <div class="bg-white p-2.5 rounded-xl max-w-[200px] shadow-sm text-gray-800">
+                        김주찬: 3일에 뭐함
+                    </div>
+                    <div class="flex justify-end">
+                        <div class="bg-amber-300 p-2.5 rounded-xl max-w-[200px] shadow-sm text-gray-900">
+                            암것도 없는디
+                        </div>
+                    </div>
+                    <div class="bg-white p-2.5 rounded-xl max-w-[200px] shadow-sm text-gray-800">
+                        김주찬: 같이 저녁 ㄱㄱ
+                    </div>
+                    <div class="flex justify-end">
+                        <div class="bg-amber-300 p-2.5 rounded-xl max-w-[200px] shadow-sm text-gray-900">
+                            ㅇㅇ
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP 8: DATING APP 🔥 -->
+        <!-- ========================================== -->
+        <div id="flame-app" class="screen-view screen-hidden-right bg-slate-950 text-white pt-11 flex flex-col">
+            <div class="px-4 py-2 flex justify-between items-center border-b border-gray-800 z-30 bg-slate-950">
+                <span class="text-xl font-black text-red-500 tracking-wider">FLAME 🔥</span>
+                <div class="flex gap-3">
+                    <button id="flame-chat-tab-btn" onclick="toggleFlameView('chat')" class="text-gray-500 relative opacity-40 pointer-events-none transition">
+                        <i class="fa-solid fa-comments text-lg"></i>
+                        <span id="flame-badge" class="hidden absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500"></span>
+                    </button>
+                    <button onclick="toggleFlameView('card')" class="text-red-500"><i class="fa-solid fa-id-card text-lg"></i></button>
+                </div>
+            </div>
+
+            <!-- Flame Profile Feed Card -->
+            <div id="flame-card-view" class="flex-1 p-3 flex flex-col justify-between overflow-y-auto no-scrollbar pb-12">
+                <div class="relative w-full aspect-[3/4] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-gray-800">
+                    <img id="flame-card-img" src="https://i.postimg.cc/9MSpgVsY/BE81FF7F-9288-4F5A-93E3-A0572502D3B4.jpg" class="w-full h-full object-cover">
+                    
+                    <button onclick="prevFlameImg()" class="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white text-lg font-bold">‹</button>
+                    <button onclick="nextFlameImg()" class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white text-lg font-bold">›</button>
+
+                    <div id="flame-dots" class="absolute top-3 inset-x-0 flex justify-center gap-1.5 z-10">
+                        <div class="w-6 h-1 rounded-full bg-white"></div>
+                        <div class="w-6 h-1 rounded-full bg-white/40"></div>
+                        <div class="w-6 h-1 rounded-full bg-white/40"></div>
+                    </div>
+
+                    <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4">
+                        <h2 class="text-lg font-bold text-white">서울 / 이선웅 / 24</h2>
+                    </div>
+                </div>
+
+                <div class="flex justify-center items-center py-2">
+                    <button id="flame-heart-btn" onclick="triggerFlameMatch()" class="w-14 h-14 rounded-full bg-slate-900 border-2 border-red-500 text-red-500 flex items-center justify-center text-2xl shadow-lg active:scale-90 transition">
+                        <i class="fa-solid fa-heart"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Flame Chat Room with Auto-scroll Container -->
+            <div id="flame-chat-view" class="hidden flex-1 flex flex-col bg-slate-900 relative overflow-hidden">
+                <!-- Chat Messages Scroll Container -->
+                <div id="flame-messages-box" class="flex-1 p-3 overflow-y-auto no-scrollbar space-y-2.5 text-xs pb-4">
+                </div>
+
+                <!-- Touch target safety container with boosted padding so choice buttons stay fully clickable above home indicator -->
+                <div class="p-3 pb-16 bg-slate-950 border-t border-gray-800 relative z-30">
+                    <div id="flame-choice-box" class="space-y-2">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP 9: INSTAGRAM APP -->
+        <!-- ========================================== -->
+        <div id="insta-app" class="screen-view screen-hidden-right bg-white text-gray-900 pt-11 flex flex-col pb-8">
+            <div class="px-4 py-2 border-b border-gray-200 flex justify-between items-center">
+                <span class="font-bold text-sm">realtukutz</span>
+                <i class="fa-solid fa-bars text-base"></i>
+            </div>
+
+            <div class="flex-1 overflow-y-auto no-scrollbar">
+                <div class="p-4 flex items-center justify-between">
+                    <div class="w-15 h-15 rounded-full bg-gray-200 border border-gray-300 flex items-center justify-center text-gray-400 text-2xl">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div class="flex gap-6 text-center">
+                        <div><p class="font-bold text-sm">1</p><p class="text-[10px] text-gray-500">게시물</p></div>
+                        <div><p class="font-bold text-sm">121</p><p class="text-[10px] text-gray-500">팔로워</p></div>
+                        <div><p class="font-bold text-sm">115</p><p class="text-[10px] text-gray-500">팔로잉</p></div>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-100">
+                    <div class="p-2.5 flex items-center gap-2">
+                        <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-[10px]"><i class="fa-solid fa-user"></i></div>
+                        <span class="text-xs font-bold">realtukutz</span>
+                    </div>
+
+                    <div class="relative aspect-square bg-black">
+                        <img id="insta-post-img" src="https://i.postimg.cc/xCq5Pqx7/35CE96F6-3B3C-41E9-B09F-EDF344339981.jpg" class="w-full h-full object-cover">
+                        
+                        <button onclick="prevInstaImg()" class="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 text-white font-bold flex items-center justify-center text-sm">‹</button>
+                        <button onclick="nextInstaImg()" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 text-white font-bold flex items-center justify-center text-sm">›</button>
+
+                        <div id="insta-dots" class="absolute inset-x-0 bottom-2 flex justify-center gap-1">
+                            <div class="w-2 h-2 rounded-full bg-white"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/50"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/50"></div>
+                        </div>
+                    </div>
+
+                    <div class="p-3">
+                        <div class="flex justify-between text-base mb-1.5">
+                            <div class="flex gap-3">
+                                <i class="fa-solid fa-heart text-red-500"></i>
+                                <i class="fa-regular fa-comment"></i>
+                                <i class="fa-regular fa-paper-plane"></i>
+                            </div>
+                            <i class="fa-regular fa-bookmark"></i>
+                        </div>
+                        <p class="text-xs font-bold text-gray-900">좋아요 21개</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP 10: YOUTUBE APP -->
+        <!-- ========================================== -->
+        <div id="youtube-app" class="screen-view screen-hidden-right bg-slate-900 text-white pt-11 flex flex-col pb-8">
+            <div class="px-4 py-2 border-b border-gray-800 flex justify-between items-center">
+                <div class="flex items-center gap-1 text-red-600 font-black tracking-tighter text-base">
+                    <i class="fa-brands fa-youtube text-xl"></i> YouTube
+                </div>
+                <div class="flex gap-3 text-gray-300 text-xs">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <i class="fa-regular fa-bell"></i>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto no-scrollbar p-3">
+                <div class="bg-slate-800 rounded-2xl overflow-hidden shadow-lg border border-slate-700/50">
+                    <div class="relative aspect-video">
+                        <img src="https://i.postimg.cc/wBwFJDVS/36A40EA1-DBC3-424C-8258-BE0F5DCB6425.jpg" class="w-full h-full object-cover">
+                        <span class="absolute bottom-2 right-2 bg-black/80 text-[10px] px-1 rounded text-white font-mono">03:24</span>
+                    </div>
+                    <div class="p-3 flex gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gray-600 flex-shrink-0 flex items-center justify-center text-xs font-bold text-gray-300">
+                            ㅤ
+                        </div>
+                        <div>
+                            <h3 class="text-xs font-bold text-white leading-snug">아무도 내 맘을 모르죠..</h3>
+                            <p class="text-[10px] text-gray-400 mt-1">ㅤ • 조회수 1.2만회 • 2일 전</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM SYSTEM HOME INDICATOR BAR -->
+        <div class="absolute bottom-1 inset-x-0 h-4 z-10 flex justify-center items-center cursor-pointer pointer-events-auto" onclick="goHome()">
+            <div class="w-28 h-1 bg-white/80 rounded-full shadow-md"></div>
+        </div>
+
+    </div>
+
+    <!-- MAIN INTERACTIVE SCRIPT -->
+    <script>
+        let passcode = "";
+        let failCount = 0;
+
+        function showPasscodeUI() {
+            document.getElementById('passcode-layer').classList.remove('hidden');
+        }
+
+        // Phone Calling Logic
+        let callInterval = null;
+        let callSeconds = 0;
+
+        function startCall(name, number) {
+            document.getElementById('call-target-name').innerText = name;
+            document.getElementById('call-timer').innerText = "통화 연결 중...";
+            document.getElementById('phone-calling-view').classList.remove('hidden');
+
+            callSeconds = 0;
+            clearInterval(callInterval);
+            setTimeout(() => {
+                callInterval = setInterval(() => {
+                    callSeconds++;
+                    const mins = String(Math.floor(callSeconds / 60)).padStart(2, '0');
+                    const secs = String(callSeconds % 60).padStart(2, '0');
+                    document.getElementById('call-timer').innerText = `${mins}:${secs}`;
+                }, 1000);
+            }, 1200);
+        }
+
+        function endCall() {
+            clearInterval(callInterval);
+            document.getElementById('phone-calling-view').classList.add('hidden');
+        }
+
+        function pressNum(num) {
+            if (passcode.length < 4) {
+                passcode += num;
+                updateDots();
+            }
+            if (passcode.length === 4) {
+                setTimeout(checkPasscode, 150);
+            }
+        }
+
+        function clearNum() {
+            passcode = "";
+            updateDots();
+            document.getElementById('passcode-layer').classList.add('hidden');
+        }
+
+        function updateDots() {
+            const dots = document.getElementById('pin-dots').children;
+            for (let i = 0; i < 4; i++) {
+                if (i < passcode.length) {
+                    dots[i].classList.add('bg-white');
+                } else {
+                    dots[i].classList.remove('bg-white');
+                }
+            }
+        }
+
+        function checkPasscode() {
+            if (passcode === "1119") {
+                document.getElementById('passcode-layer').classList.add('hidden');
+                document.getElementById('lock-screen').classList.replace('screen-active', 'screen-hidden-down');
+                document.getElementById('home-screen').classList.replace('screen-hidden-right', 'screen-active');
+            } else {
+                failCount++;
+                passcode = "";
+                updateDots();
+                const hint = document.getElementById('hint-text');
+                if (failCount >= 3) {
+                    hint.innerText = "힌트: 내 생일";
+                } else {
+                    hint.innerText = "비밀번호가 틀렸습니다.";
+                }
+            }
+        }
+
+        // Global Navigation
+        function openApp(appId) {
+            const app = document.getElementById(appId);
+            if (app) {
+                app.classList.replace('screen-hidden-right', 'screen-active');
+            }
+        }
+
+        function goHome() {
+            const screens = document.querySelectorAll('.screen-view');
+            screens.forEach(s => {
+                if (s.id !== 'lock-screen' && s.id !== 'home-screen') {
+                    s.classList.replace('screen-active', 'screen-hidden-right');
+                }
+            });
+        }
+
+        function showNotification(appName, title, text) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast-notify bg-black/85 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/20 flex gap-3 items-center mb-2 pointer-events-auto cursor-pointer';
+            toast.onclick = () => {
+                openApp('flame-app');
+                toggleFlameView('chat');
+                toast.remove();
+            };
+            toast.innerHTML = `
+                <div class="w-7 h-7 rounded-xl bg-red-500 flex items-center justify-center font-bold text-xs">${appName}</div>
+                <div class="flex-1 overflow-hidden">
+                    <p class="text-xs font-bold text-white">${title}</p>
+                    <p class="text-[11px] text-gray-300 truncate">${text}</p>
+                </div>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        }
+
+        // Flame App Image Feed Carousel State
+        const flameImgs = [
+            "https://i.postimg.cc/9MSpgVsY/BE81FF7F-9288-4F5A-93E3-A0572502D3B4.jpg",
+            "https://i.postimg.cc/DZtrd6bD/03DAE1FF-3B8C-4327-BA5E-18F56306EE3E.jpg",
+            "https://i.postimg.cc/hvT9Cm93/07CE7D31-B457-44A0-B117-D353B2E4D5A6.jpg"
+        ];
+        let flameImgIdx = 0;
+
+        function updateFlameImg() {
+            document.getElementById('flame-card-img').src = flameImgs[flameImgIdx];
+            const dots = document.getElementById('flame-dots').children;
+            for (let i = 0; i < dots.length; i++) {
+                dots[i].className = i === flameImgIdx ? "w-6 h-1 rounded-full bg-white" : "w-6 h-1 rounded-full bg-white/40";
+            }
+        }
+        function prevFlameImg() {
+            flameImgIdx = (flameImgIdx - 1 + flameImgs.length) % flameImgs.length;
+            updateFlameImg();
+        }
+        function nextFlameImg() {
+            flameImgIdx = (flameImgIdx + 1) % flameImgs.length;
+            updateFlameImg();
+        }
+
+        // Flame Match & Script Logic
+        let flameMatched = false;
+        let flameMsgSequenceIndex = 0;
+
+        const flameSequence = [
+            { type: 'user', text: "안녕하세요" },
+            { type: 'user', text: "서울 사시는거 맞죠" },
+            { type: 'reply', text: "네 맞아요" },
+
+            { type: 'user', text: "포지션 물어봐도 되나요" },
+            { type: 'user', text: "일단 저 탑" },
+            { type: 'reply', text: "잘 맞을 것 같은데" },
+            { type: 'reply', text: "만날까요" },
+
+            { type: 'user', text: "너무 갑자기인 것 같은데.." },
+            { type: 'reply', text: "아 죄송해요" },
+            { type: 'reply', text: "제가 해외에서 와서요" },
+
+            { type: 'user', text: "아" },
+            { type: 'user', text: "괜찮아요 그럼" },
+            { type: 'user', text: "그냥 만나요" },
+            { type: 'reply', text: "언제 시간 되세요" },
+
+            { type: 'user', text: "내일 저녁에 선웅씨 위치에서 보실래요" },
+            { type: 'reply', text: "좋아요 그때 봬요" }
+        ];
+
+        function triggerFlameMatch() {
+            const btn = document.getElementById('flame-heart-btn');
+            btn.classList.replace('text-red-500', 'bg-red-500');
+            btn.classList.add('text-white');
+
+            if (!flameMatched) {
+                flameMatched = true;
+                showNotification('🔥', '이선웅', '안녕하세요');
+
+                const chatTabBtn = document.getElementById('flame-chat-tab-btn');
+                chatTabBtn.classList.remove('opacity-40', 'pointer-events-none');
+                chatTabBtn.classList.replace('text-gray-500', 'text-red-500');
+                document.getElementById('flame-badge').classList.remove('hidden');
+
+                const msgBox = document.getElementById('flame-messages-box');
+                msgBox.innerHTML = `
+                    <div class="flex gap-2">
+                        <div class="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center font-bold text-[10px]">웅</div>
+                        <div class="bg-gray-800 p-2.5 rounded-2xl rounded-tl-none max-w-[200px] text-white">안녕하세요</div>
+                    </div>
+                `;
+                scrollFlameChatToBottom();
+                renderNextFlameChoice();
+            }
+        }
+
+        function toggleFlameView(view) {
+            const cardView = document.getElementById('flame-card-view');
+            const chatView = document.getElementById('flame-chat-view');
+            if (view === 'chat') {
+                cardView.classList.add('hidden');
+                chatView.classList.remove('hidden');
+                document.getElementById('flame-badge').classList.add('hidden');
+                scrollFlameChatToBottom();
+            } else {
+                chatView.classList.add('hidden');
+                cardView.classList.remove('hidden');
+            }
+        }
+
+        function scrollFlameChatToBottom() {
+            const msgBox = document.getElementById('flame-messages-box');
+            if (msgBox) {
+                setTimeout(() => {
+                    msgBox.scrollTop = msgBox.scrollHeight;
+                }, 50);
+            }
+        }
+
+        function renderNextFlameChoice() {
+            const choiceBox = document.getElementById('flame-choice-box');
+            choiceBox.innerHTML = '';
+
+            if (flameMsgSequenceIndex < flameSequence.length) {
+                const current = flameSequence[flameMsgSequenceIndex];
+                if (current.type === 'user') {
+                    const btn = document.createElement('button');
+                    btn.className = "w-full text-left p-3 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 rounded-xl text-xs text-red-200 font-medium transition cursor-pointer active:scale-98 shadow-md";
+                    btn.innerText = "💬 " + current.text;
+                    btn.onclick = () => sendSingleFlameMsg();
+                    choiceBox.appendChild(btn);
+                }
+            } else {
+                choiceBox.innerHTML = `<p class="text-center text-[11px] text-gray-400 font-medium">대화가 완료되었습니다. 내일 일정이 캘린더 및 D-Day에 추가되었습니다.</p>`;
+            }
+            scrollFlameChatToBottom();
+        }
+
+        function sendSingleFlameMsg() {
+            const msgBox = document.getElementById('flame-messages-box');
+            const current = flameSequence[flameMsgSequenceIndex];
+
+            if (!current || current.type !== 'user') return;
+
+            const userBubble = document.createElement('div');
+            userBubble.className = "flex justify-end";
+            userBubble.innerHTML = `<div class="bg-red-500 p-2.5 rounded-2xl rounded-tr-none max-w-[200px] text-white">${current.text}</div>`;
+            msgBox.appendChild(userBubble);
+            scrollFlameChatToBottom();
+
+            flameMsgSequenceIndex++;
+
+            let delay = 400;
+            while (flameMsgSequenceIndex < flameSequence.length && flameSequence[flameMsgSequenceIndex].type === 'reply') {
+                const replyText = flameSequence[flameMsgSequenceIndex].text;
+                setTimeout(() => {
+                    const replyBubble = document.createElement('div');
+                    replyBubble.className = "flex gap-2";
+                    replyBubble.innerHTML = `
+                        <div class="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center font-bold text-[10px]">웅</div>
+                        <div class="bg-gray-800 p-2.5 rounded-2xl rounded-tl-none max-w-[200px] text-white">${replyText}</div>
+                    `;
+                    msgBox.appendChild(replyBubble);
+                    scrollFlameChatToBottom();
+                }, delay);
+
+                delay += 500;
+                flameMsgSequenceIndex++;
+            }
+
+            setTimeout(() => {
+                renderNextFlameChoice();
+
+                if (flameMsgSequenceIndex >= flameSequence.length) {
+                    document.getElementById('home-dday-widget').classList.remove('hidden');
+                    document.getElementById('calendar-seunwoong-event').classList.remove('hidden');
+                }
+            }, delay);
+        }
+
+        // Instagram Feed Carousel
+        const instaImgs = [
+            "https://i.postimg.cc/xCq5Pqx7/35CE96F6-3B3C-41E9-B09F-EDF344339981.jpg",
+            "https://i.postimg.cc/rmzj9zZ6/14C167AB-F7EC-449A-8E20-F70CEE4B98CE.jpg",
+            "https://i.postimg.cc/76b9NbtJ/69A46970-4F40-47F8-9572-D19D1FB4540E.jpg"
+        ];
+        let instaImgIdx = 0;
+
+        function updateInstaImg() {
+            document.getElementById('insta-post-img').src = instaImgs[instaImgIdx];
+            const dots = document.getElementById('insta-dots').children;
+            for (let i = 0; i < dots.length; i++) {
+                dots[i].className = i === instaImgIdx ? "w-2 h-2 rounded-full bg-white" : "w-2 h-2 rounded-full bg-white/50";
+            }
+        }
+        function prevInstaImg() {
+            instaImgIdx = (instaImgIdx - 1 + instaImgs.length) % instaImgs.length;
+            updateInstaImg();
+        }
+        function nextInstaImg() {
+            instaImgIdx = (instaImgIdx + 1) % instaImgs.length;
+            updateInstaImg();
+        }
+
+        // Notes Subviews
+        function showNoteDetail() {
+            document.getElementById('notes-list-view').classList.add('hidden');
+            document.getElementById('notes-detail-view').classList.remove('hidden');
+        }
+        function hideNoteDetail() {
+            document.getElementById('notes-detail-view').classList.add('hidden');
+            document.getElementById('notes-list-view').classList.remove('hidden');
+        }
+
+        // Naver Subviews
+        function openSearchHistory() {
+            document.getElementById('internet-home-view').classList.add('hidden');
+            document.getElementById('internet-search-view').classList.remove('hidden');
+        }
+        function closeSearchHistory() {
+            document.getElementById('internet-search-view').classList.add('hidden');
+            document.getElementById('internet-home-view').classList.remove('hidden');
+        }
+
+        // Kakao Subviews
+        function openKakaoChat() {
+            document.getElementById('kakao-list-view').classList.add('hidden');
+            document.getElementById('kakao-room-view').classList.remove('hidden');
+        }
+        function closeKakaoChat() {
+            document.getElementById('kakao-room-view').classList.add('hidden');
+            document.getElementById('kakao-list-view').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
